@@ -23,6 +23,9 @@ That serves the live endpoint at:
 ```text
 http://127.0.0.1:7000/latest
 ```
+### Downlaoding dependencies
+run pip install -r requirements.txt to download all relevant dependencies
+
 
 ### 2) Start the integrated dashboard server
 In a second terminal:
