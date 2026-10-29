@@ -1,0 +1,11 @@
+boto3
+pandas
+flask
+joblib
+scikit-learn
+python-dotenv
+numpy
+requests
+kokoro>=0.9.4
+soundfile
+matplotlib
