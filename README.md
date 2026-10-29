@@ -2,6 +2,8 @@
 
 A manager-facing dashboard for construction-site psychosocial risk, built on wristband biomarker data (EDA, temperature, pulse) and posture-angle data, with ML-driven Low/Medium/High risk predictions and spoken (TTS) feedback.
 
+> **Looking for the posture ML write-up?** The full technical write-up (input data, preprocessing, model, risk classification, feedback logic, performance tables, limitations) is at [`posture/docs/TECHNICAL_WRITEUP.md`](posture/docs/TECHNICAL_WRITEUP.md). Performance charts and the reproduced instructor reference table are alongside it in [`posture/docs/`](posture/docs/).
+
 ## Layout
 
 ```

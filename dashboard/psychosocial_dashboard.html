@@ -99,6 +99,14 @@
     }
     .tab-btn:hover { color: var(--text); }
     .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .demo-btn {
+      background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 10px;
+      padding: 10px 18px; font-size: 13px; font-weight: 700; cursor: pointer; transition: 140ms ease;
+    }
+    .demo-btn:hover { border-color: rgba(56, 189, 248, 0.5); }
+    .demo-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .demo-btn.primary { background: var(--accent); color: #082032; border-color: var(--accent); }
+    .demo-btn.primary:hover { filter: brightness(1.08); }
     .badge.low { background: rgba(34, 197, 94, 0.18); color: #86efac; }
     .badge.medium { background: rgba(245, 158, 11, 0.18); color: #fcd34d; }
 
@@ -235,9 +243,16 @@
     </div>
 
     <div id="postureView" hidden>
-      <div class="panel control-card" style="margin-bottom:16px;">
-        <strong>Good/Bad Posture prediction &amp; feedback.</strong>
-        <span class="muted">Replays a real recorded posture session through the trained Low/Medium/High risk forecaster (<code>models/posture_risk_forecast_model.joblib</code>) and the feedback trigger (3 consecutive High predictions). Start <code>python posture_live_replay.py</code>, then this tab polls it directly.</span>
+      <div class="panel control-card" style="margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+        <div>
+          <strong>Posture monitoring.</strong>
+          <span class="muted">Tracks a worker's forward-lean angle and flags it Low, Medium, or High risk. If the risk stays High for about 3 seconds in a row, the worker gets a spoken reminder to correct their posture.</span>
+        </div>
+        <div style="display:flex; gap:10px; flex-shrink:0; align-items:center;">
+          <span class="small" id="postureStatusLabel"></span>
+          <button type="button" class="demo-btn primary" id="postureStartBtn" disabled>Start monitoring</button>
+          <button type="button" class="demo-btn" id="postureRestartBtn" hidden>Restart</button>
+        </div>
       </div>
 
       <div class="metrics" id="postureMetrics"></div>
@@ -246,22 +261,22 @@
         <div class="panel detail-card">
           <div class="detail-head">
             <h3>Live posture angle</h3>
-            <div class="small" id="postureSegmentLabel">waiting for stream...</div>
+            <div class="small" id="postureSegmentLabel">Waiting for data...</div>
           </div>
           <canvas id="postureChart" width="900" height="280"></canvas>
-          <div class="small" style="margin-top:8px;">Y-axis: forward-lean angle (deg). Shaded bands: 0-20&deg; low, 20-45&deg; medium, &gt;45&deg; high.</div>
+          <div class="small" style="margin-top:8px;">How far forward the worker is leaning. Green = safe, amber = caution, red = risky posture.</div>
         </div>
 
         <div class="panel detail-card">
-          <h3>Feedback trigger</h3>
+          <h3>Posture alert status</h3>
           <div class="stats-grid">
             <div class="stat-box">
-              <div class="k">Current prediction</div>
+              <div class="k">Current posture risk</div>
               <div class="v" id="postureRiskValue">--</div>
             </div>
             <div class="stat-box">
-              <div class="k">Consecutive High streak</div>
-              <div class="v" id="postureStreakValue">0 / 3</div>
+              <div class="k">Time at High risk</div>
+              <div class="v" id="postureStreakValue">0 / 3 sec</div>
             </div>
           </div>
           <div class="progress" style="margin-top:14px;"><span id="postureStreakBar" style="width:0%; background: linear-gradient(90deg, #38bdf8, #ef4444);"></span></div>
@@ -270,7 +285,7 @@
             <div class="system-message-text" id="postureFeedbackText"></div>
             <div class="small" id="postureFeedbackTime"></div>
           </div>
-          <div class="footer-note" id="postureConnectionNote">Connecting to posture replay stream (http://127.0.0.1:7002/latest)...</div>
+          <div class="footer-note" id="postureConnectionNote">Connecting to the posture sensor...</div>
         </div>
       </div>
     </div>
@@ -839,12 +854,14 @@
     // never touches the DATA/state globals the first script owns.
     (function () {
       const POSTURE_API_URL = window.POSTURE_API_URL || 'http://127.0.0.1:7002/latest';
+      const POSTURE_START_URL = POSTURE_API_URL.replace(/\/latest$/, '/start');
+      const POSTURE_RESTART_URL = POSTURE_API_URL.replace(/\/latest$/, '/restart');
       const POSTURE_REFRESH_MS = 1000;
       const POSTURE_HISTORY_MAX = 60;
       const RISK_COLORS = { low: '#22c55e', medium: '#f59e0b', high: '#ef4444', pending: '#9ca3af' };
       const FEEDBACK_LABELS = {
-        high_risk_feedback: 'Posture feedback — 3 consecutive High predictions',
-        resolved: 'Posture feedback — resolved',
+        high_risk_feedback: 'Posture alert sent to worker',
+        resolved: 'Posture back to normal',
       };
       const postureHistory = [];
 
@@ -858,6 +875,50 @@
       const postureFeedbackLabel = document.getElementById('postureFeedbackLabel');
       const postureFeedbackText = document.getElementById('postureFeedbackText');
       const postureFeedbackTime = document.getElementById('postureFeedbackTime');
+      const postureStatusLabel = document.getElementById('postureStatusLabel');
+      const postureStartBtn = document.getElementById('postureStartBtn');
+      const postureRestartBtn = document.getElementById('postureRestartBtn');
+
+      let postureLastStatus = null;
+
+      async function postureCall(url, button, busyLabel) {
+        const original = button.textContent;
+        button.disabled = true;
+        button.textContent = busyLabel;
+        try {
+          await fetch(url, { method: 'POST' });
+        } catch (error) {
+          postureConnectionNote.textContent = `Could not reach the posture sensor service (${error.message}).`;
+        } finally {
+          button.textContent = original;
+          button.disabled = false;
+        }
+      }
+      postureStartBtn.addEventListener('click', () => postureCall(POSTURE_START_URL, postureStartBtn, 'Starting...'));
+      postureRestartBtn.addEventListener('click', () => postureCall(POSTURE_RESTART_URL, postureRestartBtn, 'Restarting...'));
+
+      function renderPostureStatus(status) {
+        if (status === postureLastStatus) return;
+        postureLastStatus = status;
+        if (status === 'loading') {
+          postureStatusLabel.textContent = 'Loading...';
+          postureStartBtn.hidden = false;
+          postureStartBtn.disabled = true;
+          postureStartBtn.textContent = 'Start monitoring';
+          postureRestartBtn.hidden = true;
+        } else if (status === 'idle') {
+          postureStatusLabel.textContent = 'Ready';
+          postureStartBtn.hidden = false;
+          postureStartBtn.disabled = false;
+          postureStartBtn.textContent = 'Start monitoring';
+          postureRestartBtn.hidden = true;
+        } else if (status === 'running') {
+          postureStatusLabel.textContent = 'Monitoring live';
+          postureStartBtn.hidden = true;
+          postureRestartBtn.hidden = false;
+          postureRestartBtn.disabled = false;
+        }
+      }
 
       function activateTab(tab) {
         const isPosture = tab === 'posture';
@@ -876,18 +937,18 @@
         const streak = sample?.consecutive_high ?? 0;
         const angle = sample?.angle_deg;
         document.getElementById('postureMetrics').innerHTML = `
-          <div class="panel metric"><div class="label">Current risk prediction</div><div class="value" style="color:${RISK_COLORS[risk]}">${risk.toUpperCase()}</div><div class="sub">model forecast for the next 1s window</div></div>
-          <div class="panel metric"><div class="label">Angle (window mean)</div><div class="value">${angle != null ? angle.toFixed(1) + '&deg;' : '--'}</div><div class="sub">forward-lean, Y_Pitch</div></div>
-          <div class="panel metric"><div class="label">Consecutive High</div><div class="value">${streak}</div><div class="sub">resets on Low/Medium</div></div>
-          <div class="panel metric"><div class="label">Feedback</div><div class="value">${sample?.feedback_active ? 'ACTIVE' : 'clear'}</div><div class="sub">fires at 3 consecutive High</div></div>
+          <div class="panel metric"><div class="label">Posture risk</div><div class="value" style="color:${RISK_COLORS[risk]}">${risk.toUpperCase()}</div><div class="sub">updates about once a second</div></div>
+          <div class="panel metric"><div class="label">Lean angle</div><div class="value">${angle != null ? angle.toFixed(1) + '&deg;' : '--'}</div><div class="sub">how far forward the worker is leaning</div></div>
+          <div class="panel metric"><div class="label">Time at High risk</div><div class="value">${streak}s</div><div class="sub">resets once posture improves</div></div>
+          <div class="panel metric"><div class="label">Alert status</div><div class="value">${sample?.feedback_active ? 'SENT' : 'none'}</div><div class="sub">sent after 3 sec of High risk</div></div>
         `;
         document.getElementById('postureRiskValue').textContent = risk.toUpperCase();
         document.getElementById('postureRiskValue').style.color = RISK_COLORS[risk];
-        document.getElementById('postureStreakValue').textContent = `${Math.min(streak, 3)} / 3`;
+        document.getElementById('postureStreakValue').textContent = `${Math.min(streak, 3)} / 3 sec`;
         document.getElementById('postureStreakBar').style.width = `${Math.min(100, (streak / 3) * 100)}%`;
         document.getElementById('postureSegmentLabel').textContent = sample?.replay_segment
-          ? `segment: ${sample.replay_segment} (replayed from posture_cleaned CSV)`
-          : 'waiting for stream...';
+          ? 'Live'
+          : 'Waiting for data...';
       }
 
       function renderPostureFeedback(sample) {
@@ -961,9 +1022,17 @@
           const response = await fetch(`${POSTURE_API_URL}?t=${Date.now()}`, { cache: 'no-store' });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const sample = await response.json();
-          postureConnectionNote.textContent = sample.updated_at
-            ? `Connected — last update ${sample.updated_at}`
-            : 'Connected — waiting for first window...';
+          renderPostureStatus(sample.status);
+
+          if (sample.status === 'loading') {
+            postureConnectionNote.textContent = 'Connected — loading the posture model...';
+          } else if (sample.status === 'idle') {
+            postureConnectionNote.textContent = 'Connected — click "Start monitoring" above when you\'re ready.';
+          } else {
+            postureConnectionNote.textContent = sample.updated_at
+              ? `Monitoring — last updated ${sample.updated_at}`
+              : 'Monitoring — waiting for the first reading...';
+          }
 
           if (sample.angle_deg != null && sample.risk?.label) {
             postureHistory.push({ angle: sample.angle_deg, risk: sample.risk.label });
@@ -973,7 +1042,11 @@
           renderPostureFeedback(sample);
           drawPostureChart();
         } catch (error) {
-          postureConnectionNote.textContent = `Posture replay stream unavailable (${error.message}). Start it with: python posture_live_replay.py`;
+          postureLastStatus = null;
+          postureStartBtn.hidden = true;
+          postureRestartBtn.hidden = true;
+          postureStatusLabel.textContent = '';
+          postureConnectionNote.textContent = 'Posture monitoring is offline. Ask the team to start the posture sensor service.';
         }
       }
 

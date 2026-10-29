@@ -31,7 +31,14 @@ model's actual predictions (see team2_posture_risk_deliverables/TECHNICAL_WRITEU
 Usage:
     python train_posture_risk_model.py   # once, to produce the model file
     python posture_live_replay.py        # this script
-Then open the dashboard's Posture tab, or curl http://localhost:7002/latest
+
+The model and the replay data load immediately, but playback does NOT start
+on its own -- it waits (serving an "idle" /latest) until something calls
+POST /start, so you can get the dashboard up first and start the data flowing
+on cue (e.g. right after you hit record). Call POST /restart at any point to
+jump playback back to the beginning of the good->bad->good arc for another
+take, without restarting this process. The dashboard's Posture tab has
+buttons for both.
 """
 from __future__ import annotations
 
@@ -71,8 +78,11 @@ REPLAY_SEQUENCE = [(6, "without", 1), (1, "with", 1), (5, "without", 1)]
 
 app = Flask(__name__)
 _lock = threading.Lock()
+_start_event = threading.Event()
+_restart_requested = threading.Event()
 latest_sample = {
     "participant_id": PARTICIPANT_ID,
+    "status": "loading",  # "loading" -> "idle" -> "running"
     "updated_at": None,
     "source": (
         "posture_live_replay.py -- REPLAYED from real recorded sessions in "
@@ -100,6 +110,26 @@ def _add_cors_headers(response):
 def latest():
     with _lock:
         return jsonify(latest_sample)
+
+
+@app.route("/start", methods=["POST", "GET"])
+def start():
+    """Begin playback. No-op if already running (so clicking the dashboard's
+    Start button twice can't do anything surprising)."""
+    _start_event.set()
+    with _lock:
+        already_running = latest_sample["status"] == "running"
+    return jsonify({"ok": True, "already_running": already_running})
+
+
+@app.route("/restart", methods=["POST", "GET"])
+def restart():
+    """Jump playback back to the start of the good->bad->good arc (and reset
+    the feedback streak) for another take, without restarting the process.
+    Implies /start, so it also works before the first start."""
+    _start_event.set()
+    _restart_requested.set()
+    return jsonify({"ok": True})
 
 
 def _load_model_and_features():
@@ -142,10 +172,24 @@ def replay_loop():
     if not SPEAK_FEEDBACK:
         print("[posture_live_replay] TTS disabled (POSTURE_SPEAK_FEEDBACK=0)")
 
+    with _lock:
+        latest_sample["status"] = "idle"
+    print(f"[posture_live_replay] ready -- waiting for POST /start (or GET http://127.0.0.1:{PORT}/start) to begin playback")
+    _start_event.wait()
+    _restart_requested.clear()  # a /restart called before the first /start just meant "start"
+    with _lock:
+        latest_sample["status"] = "running"
+    print("[posture_live_replay] playback started")
+
     feedback_state = FEEDBACK_INITIAL_STATE
 
     while True:
         for _, row in windows.iterrows():
+            if _restart_requested.is_set():
+                _restart_requested.clear()
+                print("[posture_live_replay] restart requested -- jumping back to the start of the loop")
+                break  # falls through to the loop-end reset below, then re-enters `while True`
+
             # A one-row DataFrame (not a bare ndarray) so sklearn sees the same
             # column names/order it was fit on -- avoids a spurious "X does
             # not have valid feature names" warning on every tick.
