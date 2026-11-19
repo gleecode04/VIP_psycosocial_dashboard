@@ -119,6 +119,8 @@
     .small { font-size: 12px; color: var(--muted); }
     .footer-note { margin-top: 14px; font-size: 12px; color: var(--muted); }
     .timeline-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 10px; }
+    #checkinHistoryTable th, #checkinHistoryTable td { padding: 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    #checkinQuestionRows .demo-btn.primary { background: var(--accent); color: #082032; border-color: var(--accent); }
     @media (max-width: 1200px) {
       .metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .layout { grid-template-columns: 1fr; }
@@ -144,6 +146,7 @@
     <div class="tab-bar" role="tablist" aria-label="Dashboard sections">
       <button type="button" class="tab-btn active" id="tabBtnPsychosocial" role="tab" aria-selected="true" aria-controls="psychosocialView">Frustration &amp; Mental Demand</button>
       <button type="button" class="tab-btn" id="tabBtnPosture" role="tab" aria-selected="false" aria-controls="postureView">Posture</button>
+      <button type="button" class="tab-btn" id="tabBtnResearch" role="tab" aria-selected="false" aria-controls="researchView">Research</button>
     </div>
 
     <div id="psychosocialView">
@@ -185,6 +188,34 @@
       <div class="system-message-label" id="systemMessageLabel">System message</div>
       <div class="system-message-text" id="systemMessageText"></div>
       <div class="small" id="systemMessageTime"></div>
+    </div>
+
+    <div class="panel control-card" id="checkinBar" style="margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+      <div>
+        <strong>Closed-loop check-ins.</strong>
+        <span class="muted">CHAP asks a quick question after a High prediction and learns from the answer. You can also report in any time.</span>
+      </div>
+      <button type="button" class="demo-btn primary" id="tellChapBtn">How do you feel? Tell CHAP</button>
+    </div>
+
+    <div class="panel detail-card" id="checkinCard" hidden style="margin-bottom:16px;">
+      <div class="detail-head">
+        <div>
+          <h3 id="checkinCardTitle">Quick check</h3>
+          <div class="small" id="checkinCardSubtitle"></div>
+        </div>
+        <button type="button" class="demo-btn" id="checkinDismissBtn" title="Dismiss without answering">&times;</button>
+      </div>
+      <div id="checkinQuestionRows" style="margin-top:10px; display:grid; gap:14px;"></div>
+      <div style="margin-top:14px;">
+        <label for="checkinFreeText">What was going on?</label>
+        <input id="checkinFreeText" type="text" placeholder="e.g. heavy lifting, noisy site, tight deadline..."
+          style="width:100%; background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 10px;" />
+      </div>
+      <div style="margin-top:14px; display:flex; gap:10px; align-items:center;">
+        <button type="button" class="demo-btn primary" id="checkinSubmitBtn">Send answer</button>
+        <span class="small" id="checkinSubmitNote"></span>
+      </div>
     </div>
 
     <div class="layout">
@@ -251,7 +282,18 @@
         <div style="display:flex; gap:10px; flex-shrink:0; align-items:center;">
           <span class="small" id="postureStatusLabel"></span>
           <button type="button" class="demo-btn primary" id="postureStartBtn" disabled>Start monitoring</button>
-          <button type="button" class="demo-btn" id="postureRestartBtn" hidden>Restart</button>
+          <button type="button" class="demo-btn" id="postureRestartBtn" hidden title="Re-zeroes the neutral baseline without reconnecting -- use this if the strap shifted or the angle looks off.">Recalibrate</button>
+        </div>
+      </div>
+
+      <div class="panel control-card" id="posturePolarPanel" style="margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+        <div>
+          <strong>Posture sensor.</strong>
+          <span class="muted" id="postureBleStatus">Not connected</span>
+        </div>
+        <div style="display:flex; gap:10px; flex-shrink:0;">
+          <button type="button" class="demo-btn" id="postureConnectBtn">Connect Polar H10</button>
+          <button type="button" class="demo-btn" id="postureDisconnectBtn">Disconnect</button>
         </div>
       </div>
 
@@ -275,11 +317,19 @@
               <div class="v" id="postureRiskValue">--</div>
             </div>
             <div class="stat-box">
+              <div class="k">Likely cause</div>
+              <div class="v" id="postureCauseValue" style="font-size:1rem;">--</div>
+            </div>
+            <div class="stat-box">
               <div class="k">Time at High risk</div>
               <div class="v" id="postureStreakValue">0 / 3 sec</div>
             </div>
           </div>
           <div class="progress" style="margin-top:14px;"><span id="postureStreakBar" style="width:0%; background: linear-gradient(90deg, #38bdf8, #ef4444);"></span></div>
+          <div class="panel" id="postureGuidanceBanner" hidden style="margin-top:16px; padding:12px 16px;">
+            <div class="system-message-label">Current guidance</div>
+            <div class="system-message-text" id="postureGuidanceText"></div>
+          </div>
           <div class="panel system-message-banner" id="postureFeedbackBanner" hidden style="margin-top:16px;">
             <div class="system-message-label" id="postureFeedbackLabel">Feedback</div>
             <div class="system-message-text" id="postureFeedbackText"></div>
@@ -287,6 +337,21 @@
           </div>
           <div class="footer-note" id="postureConnectionNote">Connecting to the posture sensor...</div>
         </div>
+      </div>
+    </div>
+
+    <div id="researchView" hidden>
+      <div class="panel detail-card" style="margin-bottom:16px;">
+        <h3>Predictions by level</h3>
+        <div class="small">Counts of every Low/Medium/High prediction so far this session, per source.</div>
+        <div class="stats-grid" id="predictionsByLevel" style="margin-top:12px;"></div>
+      </div>
+      <div class="panel detail-card">
+        <div class="detail-head">
+          <h3>Check-ins</h3>
+          <div class="small" id="checkinStatsSummary"></div>
+        </div>
+        <div id="checkinHistoryTable" style="overflow:auto;"></div>
       </div>
     </div>
   </div>
@@ -848,14 +913,15 @@
   </script>
 
   <script>
-    // Posture tab: entirely self-contained -- polls
-    // posture_live_replay.py's own /latest endpoint directly (a different
-    // port/process than the Frustration/Mental Demand bridge above), so it
-    // never touches the DATA/state globals the first script owns.
+    // Posture tab: entirely self-contained -- polls this same dashboard
+    // server's own /api/posture/latest endpoint (served in-process by
+    // serve_dashboard.py via posture_live_bridge.py, fed by real Polar H10
+    // readings from assets/posture-panel.js), so it never touches the
+    // DATA/state globals the first script owns.
     (function () {
-      const POSTURE_API_URL = window.POSTURE_API_URL || 'http://127.0.0.1:7002/latest';
-      const POSTURE_START_URL = POSTURE_API_URL.replace(/\/latest$/, '/start');
-      const POSTURE_RESTART_URL = POSTURE_API_URL.replace(/\/latest$/, '/restart');
+      const POSTURE_API_URL = window.POSTURE_API_URL || '/api/posture/latest';
+      const POSTURE_START_URL = '/api/posture/session/start';
+      const POSTURE_RESTART_URL = '/api/posture/session/restart';
       const POSTURE_REFRESH_MS = 1000;
       const POSTURE_HISTORY_MAX = 60;
       const RISK_COLORS = { low: '#22c55e', medium: '#f59e0b', high: '#ef4444', pending: '#9ca3af' };
@@ -863,12 +929,26 @@
         high_risk_feedback: 'Posture alert sent to worker',
         resolved: 'Posture back to normal',
       };
+      // Mirrors posture_dbr.py's _CAUSE_LABELS -- keep in sync if that changes.
+      const CAUSE_LABELS = {
+        neutral: 'Neutral position',
+        forward_bending: 'Forward bending',
+        twisting: 'Twisting / rotation',
+        side_bending: 'Side bending',
+        overhead_work: 'Overhead / raised-arm work',
+        asymmetric_lifting: 'Uneven, asymmetric loading',
+        static_posture: 'Same position too long',
+        excessive_activity: 'A lot of fast movement',
+        posture_deviation: 'Non-neutral posture',
+      };
       const postureHistory = [];
 
       const tabBtnPsychosocial = document.getElementById('tabBtnPsychosocial');
       const tabBtnPosture = document.getElementById('tabBtnPosture');
+      const tabBtnResearch = document.getElementById('tabBtnResearch');
       const psychosocialView = document.getElementById('psychosocialView');
       const postureView = document.getElementById('postureView');
+      const researchView = document.getElementById('researchView');
       const postureChart = document.getElementById('postureChart');
       const postureConnectionNote = document.getElementById('postureConnectionNote');
       const postureFeedbackBanner = document.getElementById('postureFeedbackBanner');
@@ -878,6 +958,9 @@
       const postureStatusLabel = document.getElementById('postureStatusLabel');
       const postureStartBtn = document.getElementById('postureStartBtn');
       const postureRestartBtn = document.getElementById('postureRestartBtn');
+      const postureCauseValue = document.getElementById('postureCauseValue');
+      const postureGuidanceBanner = document.getElementById('postureGuidanceBanner');
+      const postureGuidanceText = document.getElementById('postureGuidanceText');
 
       let postureLastStatus = null;
 
@@ -894,13 +977,19 @@
           button.disabled = false;
         }
       }
-      postureStartBtn.addEventListener('click', () => postureCall(POSTURE_START_URL, postureStartBtn, 'Starting...'));
-      postureRestartBtn.addEventListener('click', () => postureCall(POSTURE_RESTART_URL, postureRestartBtn, 'Restarting...'));
+      postureStartBtn.addEventListener('click', () => postureCall(POSTURE_START_URL, postureStartBtn, 'Calibrating...'));
+      postureRestartBtn.addEventListener('click', () => postureCall(POSTURE_RESTART_URL, postureRestartBtn, 'Recalibrating...'));
 
       function renderPostureStatus(status) {
         if (status === postureLastStatus) return;
         postureLastStatus = status;
-        if (status === 'loading') {
+        if (status === 'disconnected') {
+          postureStatusLabel.textContent = 'Not connected';
+          postureStartBtn.hidden = false;
+          postureStartBtn.disabled = true;
+          postureStartBtn.textContent = 'Start monitoring';
+          postureRestartBtn.hidden = true;
+        } else if (status === 'loading') {
           postureStatusLabel.textContent = 'Loading...';
           postureStartBtn.hidden = false;
           postureStartBtn.disabled = true;
@@ -912,6 +1001,16 @@
           postureStartBtn.disabled = false;
           postureStartBtn.textContent = 'Start monitoring';
           postureRestartBtn.hidden = true;
+        } else if (status === 'calibrating') {
+          postureStatusLabel.textContent = 'Calibrating -- hold a neutral position...';
+          postureStartBtn.hidden = true;
+          postureRestartBtn.hidden = false;
+          postureRestartBtn.disabled = true;
+        } else if (status === 'calibrating_forward') {
+          postureStatusLabel.textContent = 'Calibrating -- now lean forward slightly and hold...';
+          postureStartBtn.hidden = true;
+          postureRestartBtn.hidden = false;
+          postureRestartBtn.disabled = true;
         } else if (status === 'running') {
           postureStatusLabel.textContent = 'Monitoring live';
           postureStartBtn.hidden = true;
@@ -921,34 +1020,69 @@
       }
 
       function activateTab(tab) {
-        const isPosture = tab === 'posture';
-        postureView.hidden = !isPosture;
-        psychosocialView.hidden = isPosture;
-        tabBtnPosture.classList.toggle('active', isPosture);
-        tabBtnPosture.setAttribute('aria-selected', String(isPosture));
-        tabBtnPsychosocial.classList.toggle('active', !isPosture);
-        tabBtnPsychosocial.setAttribute('aria-selected', String(!isPosture));
+        const views = { psychosocial: psychosocialView, posture: postureView, research: researchView };
+        const buttons = { psychosocial: tabBtnPsychosocial, posture: tabBtnPosture, research: tabBtnResearch };
+        Object.keys(views).forEach((key) => {
+          const isActive = key === tab;
+          views[key].hidden = !isActive;
+          buttons[key].classList.toggle('active', isActive);
+          buttons[key].setAttribute('aria-selected', String(isActive));
+        });
+        if (tab === 'research' && window.refreshResearchView) window.refreshResearchView();
       }
       tabBtnPsychosocial.addEventListener('click', () => activateTab('psychosocial'));
       tabBtnPosture.addEventListener('click', () => activateTab('posture'));
+      tabBtnResearch.addEventListener('click', () => activateTab('research'));
 
       function renderPostureMetrics(sample) {
         const risk = sample?.risk?.label || 'pending';
         const streak = sample?.consecutive_high ?? 0;
-        const angle = sample?.angle_deg;
+        // Pitch (forward/back lean) is the PRIMARY signal -- it's what
+        // severity is based on. Roll (side-to-side lean) is secondary: it
+        // never changes the risk level, just explains the "likely cause"
+        // tile below, so it's shown as a small sub-line here rather than
+        // its own headline metric. Falls back to the omnidirectional tilt
+        // angle in "ml" mode, which doesn't compute pitch/roll separately.
+        const pitch = sample?.pitch_deg ?? sample?.tilt_deg ?? sample?.angle_deg;
+        const roll = sample?.roll_deg;
+        const pitchLabel = sample?.pitch_deg != null ? 'Pitch (forward/back)' : 'Tilt from neutral';
+        const rollSub = roll != null
+          ? `secondary: side lean ${roll.toFixed(1)}&deg;`
+          : 'how far from the calibrated neutral pose';
+        const cause = sample?.cause;
+        const causeLabel = cause ? (CAUSE_LABELS[cause] || cause) : '--';
         document.getElementById('postureMetrics').innerHTML = `
           <div class="panel metric"><div class="label">Posture risk</div><div class="value" style="color:${RISK_COLORS[risk]}">${risk.toUpperCase()}</div><div class="sub">updates about once a second</div></div>
-          <div class="panel metric"><div class="label">Lean angle</div><div class="value">${angle != null ? angle.toFixed(1) + '&deg;' : '--'}</div><div class="sub">how far forward the worker is leaning</div></div>
+          <div class="panel metric"><div class="label">${pitchLabel}</div><div class="value">${pitch != null ? pitch.toFixed(1) + '&deg;' : '--'}</div><div class="sub">${rollSub}</div></div>
+          <div class="panel metric"><div class="label">Likely cause</div><div class="value" style="font-size:1rem;">${causeLabel}</div><div class="sub">why the current reading looks the way it does</div></div>
           <div class="panel metric"><div class="label">Time at High risk</div><div class="value">${streak}s</div><div class="sub">resets once posture improves</div></div>
           <div class="panel metric"><div class="label">Alert status</div><div class="value">${sample?.feedback_active ? 'SENT' : 'none'}</div><div class="sub">sent after 3 sec of High risk</div></div>
         `;
         document.getElementById('postureRiskValue').textContent = risk.toUpperCase();
         document.getElementById('postureRiskValue').style.color = RISK_COLORS[risk];
+        postureCauseValue.textContent = causeLabel;
         document.getElementById('postureStreakValue').textContent = `${Math.min(streak, 3)} / 3 sec`;
         document.getElementById('postureStreakBar').style.width = `${Math.min(100, (streak / 3) * 100)}%`;
         document.getElementById('postureSegmentLabel').textContent = sample?.replay_segment
           ? 'Live'
           : 'Waiting for data...';
+      }
+
+      function renderPostureGuidance(sample) {
+        // Always-current text for the present reading (shown at Low/Medium/
+        // High alike) -- distinct from postureFeedbackBanner below, which
+        // only shows the actual spoken alert/resolved events (Medium never
+        // speaks, by spec; see posture_feedback.py).
+        const text = sample?.feedback_text;
+        if (!text || sample?.status !== 'running') {
+          postureGuidanceBanner.hidden = true;
+          return;
+        }
+        postureGuidanceBanner.hidden = false;
+        const risk = sample?.risk?.label;
+        postureGuidanceBanner.style.borderLeft = `4px solid ${RISK_COLORS[risk] || '#9ca3af'}`;
+        const causeLabel = sample?.cause ? (CAUSE_LABELS[sample.cause] || sample.cause) : null;
+        postureGuidanceText.textContent = causeLabel ? `${causeLabel}: ${text}` : text;
       }
 
       function renderPostureFeedback(sample) {
@@ -1024,21 +1158,35 @@
           const sample = await response.json();
           renderPostureStatus(sample.status);
 
-          if (sample.status === 'loading') {
+          if (sample.status === 'disconnected') {
+            postureConnectionNote.textContent = 'Click "Connect Polar H10" above to begin.';
+          } else if (sample.status === 'loading') {
             postureConnectionNote.textContent = 'Connected — loading the posture model...';
           } else if (sample.status === 'idle') {
             postureConnectionNote.textContent = 'Connected — click "Start monitoring" above when you\'re ready.';
+          } else if (sample.status === 'calibrating') {
+            postureConnectionNote.textContent = 'Hold a neutral, relaxed position for about a second while we calibrate...';
+          } else if (sample.status === 'calibrating_forward') {
+            postureConnectionNote.textContent = 'Now lean forward slightly and hold for about a second -- this teaches CHAP which direction is "forward" for you.';
           } else {
             postureConnectionNote.textContent = sample.updated_at
               ? `Monitoring — last updated ${sample.updated_at}`
               : 'Monitoring — waiting for the first reading...';
           }
 
-          if (sample.angle_deg != null && sample.risk?.label) {
-            postureHistory.push({ angle: sample.angle_deg, risk: sample.risk.label });
+          // Plot |pitch| (the primary severity signal) so the chart's
+          // Low/Medium/High bands line up with the actual risk level;
+          // falls back to the omnidirectional tilt angle in "ml" mode,
+          // which has no separate pitch/roll.
+          const plotAngle = sample.pitch_deg != null ? Math.abs(sample.pitch_deg) : sample.angle_deg;
+          if (sample.status !== 'running') {
+            postureHistory.length = 0; // don't keep re-plotting a frozen last reading once disconnected/idle
+          } else if (plotAngle != null && sample.risk?.label) {
+            postureHistory.push({ angle: plotAngle, risk: sample.risk.label });
             while (postureHistory.length > POSTURE_HISTORY_MAX) postureHistory.shift();
           }
           renderPostureMetrics(sample);
+          renderPostureGuidance(sample);
           renderPostureFeedback(sample);
           drawPostureChart();
         } catch (error) {
@@ -1046,7 +1194,7 @@
           postureStartBtn.hidden = true;
           postureRestartBtn.hidden = true;
           postureStatusLabel.textContent = '';
-          postureConnectionNote.textContent = 'Posture monitoring is offline. Ask the team to start the posture sensor service.';
+          postureConnectionNote.textContent = 'Posture monitoring is offline. Make sure the dashboard server (serve_dashboard.py) is running.';
         }
       }
 
@@ -1055,6 +1203,221 @@
     })();
   </script>
 
+  <script>
+    // Closed-loop check-ins (Closed loop Guide.md steps 5-8): the Quick-check
+    // card, the "How do you feel? Tell CHAP" self-report, and the Research
+    // view's agreement stats. Self-contained like the posture tab's script
+    // -- polls this dashboard server's own /api/checkin/* endpoints (served
+    // by serve_dashboard.py via checkin_bridge.py). "Predictions by level"
+    // reads the first script's DATA global read-only; it never writes it.
+    (function () {
+      const CHECKIN_REFRESH_MS = 3000;
+      const ANSWER_OPTIONS = ['Yes', 'A little', 'No'];
+      const SOURCE_LABELS = { stress: 'Stress', mental_load: 'Mental load' };
+
+      const checkinCard = document.getElementById('checkinCard');
+      const checkinCardTitle = document.getElementById('checkinCardTitle');
+      const checkinCardSubtitle = document.getElementById('checkinCardSubtitle');
+      const checkinQuestionRows = document.getElementById('checkinQuestionRows');
+      const checkinFreeText = document.getElementById('checkinFreeText');
+      const checkinSubmitBtn = document.getElementById('checkinSubmitBtn');
+      const checkinSubmitNote = document.getElementById('checkinSubmitNote');
+      const checkinDismissBtn = document.getElementById('checkinDismissBtn');
+      const tellChapBtn = document.getElementById('tellChapBtn');
+      const predictionsByLevel = document.getElementById('predictionsByLevel');
+      const checkinStatsSummary = document.getElementById('checkinStatsSummary');
+      const checkinHistoryTable = document.getElementById('checkinHistoryTable');
+
+      let mode = null; // 'pending' | 'self'
+      let currentQuestionId = null;
+      let answers = { stressed: null, mental: null };
+      let lastRenderedPendingId = null;
+      let dismissedPendingId = null;
+
+      function answerRow(key, label) {
+        const row = document.createElement('div');
+        const heading = document.createElement('div');
+        heading.className = 'small';
+        heading.style.marginBottom = '6px';
+        heading.textContent = label;
+        row.appendChild(heading);
+        const btnRow = document.createElement('div');
+        btnRow.style.display = 'flex';
+        btnRow.style.gap = '8px';
+        ANSWER_OPTIONS.forEach((opt) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'demo-btn';
+          btn.textContent = opt;
+          btn.addEventListener('click', () => {
+            answers[key] = opt;
+            [...btnRow.children].forEach((b) => b.classList.toggle('primary', b === btn));
+          });
+          btnRow.appendChild(btn);
+        });
+        row.appendChild(btnRow);
+        return row;
+      }
+
+      function openCard(newMode, context) {
+        mode = newMode;
+        currentQuestionId = context.question_id || null;
+        answers = { stressed: null, mental: null };
+        checkinFreeText.value = '';
+        checkinSubmitNote.textContent = '';
+        checkinQuestionRows.innerHTML = '';
+        checkinQuestionRows.appendChild(answerRow('stressed', 'Were you feeling stressed at that time?'));
+        checkinQuestionRows.appendChild(answerRow('mental', 'Was your mind working hard?'));
+
+        if (newMode === 'pending') {
+          const sourceLabel = SOURCE_LABELS[context.trigger_source] || context.trigger_source;
+          checkinCardTitle.textContent = 'Quick check';
+          checkinCardSubtitle.textContent = `CHAP predicted ${sourceLabel} High around ${context.moment_time || 'just now'}.`;
+        } else {
+          checkinCardTitle.textContent = 'Tell CHAP how you feel';
+          checkinCardSubtitle.textContent = "Answering any time helps CHAP learn, even when it didn't ask.";
+        }
+        checkinCard.hidden = false;
+      }
+
+      function closeCard() {
+        checkinCard.hidden = true;
+        mode = null;
+        currentQuestionId = null;
+      }
+
+      checkinDismissBtn.addEventListener('click', () => {
+        if (mode === 'pending' && currentQuestionId) dismissedPendingId = currentQuestionId;
+        closeCard();
+      });
+
+      tellChapBtn.addEventListener('click', () => openCard('self', {}));
+
+      checkinSubmitBtn.addEventListener('click', async () => {
+        const body = { stressed: answers.stressed, mental: answers.mental, free_text: checkinFreeText.value || null };
+        const wasPending = mode === 'pending';
+        const url = wasPending ? '/api/checkin/answer' : '/api/checkin/self-report';
+        if (wasPending) body.question_id = currentQuestionId;
+
+        checkinSubmitBtn.disabled = true;
+        try {
+          const response = await fetch(url, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+          });
+          const result = await response.json();
+          if (!result.ok) {
+            checkinSubmitNote.textContent = result.error || 'Could not send that answer.';
+            return;
+          }
+          if (wasPending) dismissedPendingId = currentQuestionId;
+          closeCard();
+        } catch (error) {
+          checkinSubmitNote.textContent = `Could not reach the server (${error.message}).`;
+        } finally {
+          checkinSubmitBtn.disabled = false;
+        }
+      });
+
+      async function pollPending() {
+        if (mode === 'self') return; // don't clobber an in-progress self-report
+        try {
+          const response = await fetch(`/api/checkin/pending?t=${Date.now()}`, { cache: 'no-store' });
+          if (!response.ok) return;
+          const pending = await response.json();
+          if (!pending) {
+            lastRenderedPendingId = null;
+            if (mode === 'pending') closeCard();
+            return;
+          }
+          if (pending.question_id === dismissedPendingId) return;
+          if (pending.question_id === lastRenderedPendingId && mode === 'pending') return;
+          lastRenderedPendingId = pending.question_id;
+          openCard('pending', pending);
+        } catch (error) {
+          // Quiet -- same best-effort posture as the rest of the dashboard's polling.
+        }
+      }
+
+      function renderPredictionsByLevel() {
+        const counts = {
+          Frustration: { low: 0, medium: 0, high: 0, pending: 0 },
+          'Mental Demand': { low: 0, medium: 0, high: 0, pending: 0 },
+        };
+        const data = window.DATA;
+        if (data && data.categories) {
+          Object.keys(counts).forEach((taskType) => {
+            const sessions = data.categories[taskType] || [];
+            sessions.filter((s) => s.mode === 'Live').forEach((session) => {
+              (session.records || []).forEach((record) => {
+                const labelField = taskType === 'Frustration' ? 'frustrationLabel' : 'mentalDemandLabel';
+                const label = (record[labelField] || 'Pending').toLowerCase();
+                if (counts[taskType][label] != null) counts[taskType][label] += 1;
+              });
+            });
+          });
+        }
+        predictionsByLevel.innerHTML = Object.entries(counts).map(([source, levels]) => `
+          <div class="stat-box">
+            <div class="k">${source}</div>
+            <div class="v" style="font-size:16px;">Low ${levels.low} &middot; Med ${levels.medium} &middot; High ${levels.high}</div>
+          </div>
+        `).join('');
+      }
+
+      function renderCheckinStats(stats) {
+        const stress = stats.by_source.stress;
+        const mental = stats.by_source.mental_load;
+        const pct = (rate) => (rate == null ? 'n/a' : `${Math.round(rate * 100)}%`);
+        checkinStatsSummary.textContent =
+          `Stress: ${stress.asked} asked, ${stress.answered} answered, ${pct(stress.agreement_rate)} confirmed high` +
+          ` · Mental load: ${mental.asked} asked, ${mental.answered} answered, ${pct(mental.agreement_rate)} confirmed high` +
+          ` · ${stats.self_report_count} self-report(s)`;
+
+        if (!stats.history.length) {
+          checkinHistoryTable.innerHTML = '<div class="small muted">No check-ins yet.</div>';
+          return;
+        }
+        const agreedCell = (value) => (value == null ? '--' : (value ? 'Confirmed' : 'False alarm'));
+        const rows = stats.history.map((r) => `
+          <tr>
+            <td>${r.asked_at || ''}</td>
+            <td>${r.participant_id}</td>
+            <td>${r.is_self_report ? 'Self-report' : (SOURCE_LABELS[r.trigger_source] || r.trigger_source)}</td>
+            <td>${r.stress_label_at_ask || '--'} / ${r.mental_label_at_ask || '--'}</td>
+            <td>${r.stressed_raw_answer || 'No answer'} / ${r.mental_raw_answer || 'No answer'}</td>
+            <td>${r.is_self_report ? '--' : agreedCell(r.stressed_agreed)}</td>
+            <td>${r.is_self_report ? '--' : agreedCell(r.mental_agreed)}</td>
+            <td>${r.free_text || ''}</td>
+          </tr>
+        `).join('');
+        checkinHistoryTable.innerHTML = `
+          <table style="width:100%; border-collapse:collapse; font-size:13px;">
+            <thead><tr style="text-align:left; color:var(--muted);">
+              <th>Asked at</th><th>Worker</th><th>Source</th>
+              <th>Predicted (stress/mental)</th><th>Answer (stress/mental)</th>
+              <th>Stress agreed?</th><th>Mental agreed?</th><th>Notes</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>`;
+      }
+
+      window.refreshResearchView = async function refreshResearchView() {
+        renderPredictionsByLevel();
+        try {
+          const response = await fetch(`/api/checkin/stats?t=${Date.now()}`, { cache: 'no-store' });
+          if (!response.ok) return;
+          renderCheckinStats(await response.json());
+        } catch (error) {
+          checkinStatsSummary.textContent = `Could not reach the server (${error.message}).`;
+        }
+      };
+
+      pollPending();
+      setInterval(pollPending, CHECKIN_REFRESH_MS);
+    })();
+  </script>
+
   <script type="module" src="./assets/polar-panel.js"></script>
+  <script type="module" src="./assets/posture-panel.js"></script>
 </body>
 </html>

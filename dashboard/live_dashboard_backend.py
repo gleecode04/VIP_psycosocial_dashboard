@@ -12,6 +12,29 @@ from typing import Any
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
+import checkin_bridge
+
+
+def get_sample_time(sample: dict) -> datetime:
+    """Use the biomarker's own timestamp, not wall-clock time, so a
+    checkin-ask moment reflects the participant's actual timeline (and lets
+    a demo/mock poller fast-forward its simulated clock). A duplicate of
+    biomarkers/stress_state.py's function of the same name -- dashboard/ and
+    biomarkers/ are separate self-contained folders (see repo README), and
+    this one's small and pure enough that copying it beats a cross-folder
+    import for a single ten-line helper.
+    """
+    for key in ("eda_time", "temp_time", "pulse_time", "updated_at"):
+        value = sample.get(key)
+        if not value:
+            continue
+        try:
+            text = value.replace("Z", "+00:00")
+            return datetime.fromisoformat(text).replace(tzinfo=None)
+        except (ValueError, TypeError):
+            continue
+    return datetime.now()
+
 
 class LiveDashboardBridge:
     def __init__(self, base_json_path: Path | str, live_url: str = 'http://127.0.0.1:7001/latest', poll_seconds: int = 5):
@@ -97,6 +120,11 @@ class LiveDashboardBridge:
             })
             self.latest_sample = payload
 
+            # Runs on every successful poll tick, not just when the sample
+            # changes, so a 10-minute-unanswered check-in question expires
+            # promptly instead of waiting for the next new reading.
+            checkin_bridge.bridge.check_expiry()
+
             if not payload.get('updated_at'):
                 return
             if signature == self.last_signature:
@@ -139,6 +167,71 @@ class LiveDashboardBridge:
 
         for task_type in ('Frustration', 'Mental Demand'):
             self._maybe_add_alert(task_type)
+
+        self._consider_checkin(payload, point)
+
+    def _consider_checkin(self, payload: dict[str, Any], point: dict[str, Any]) -> None:
+        """Closed-loop step 5: feed this tick's labels to the check-in ask
+        gate (checkin_bridge.py / checkin.py). Snapshots the exact feature
+        shapes the trained models were fit on (biomarker_runtime.py /
+        train_biomarker_models.py) so a later checkin answer can be
+        replayed as a training row by retrain_from_checkins.py.
+        """
+        participant_id = payload.get('participant_id') or 'LIVE'
+        sample_time = get_sample_time(payload)
+        minute_index = int((payload.get('predictions') or {}).get('session_minute_index') or 0)
+        # t-1 is the previous raw_history entry, if any; falls back to the
+        # current point (zero delta) for the very first reading of a
+        # session, when there's nothing earlier to diff against yet.
+        prev = self.raw_history[-2] if len(self.raw_history) >= 2 else point
+        features_snapshot = self._build_features_snapshot(point, prev, minute_index)
+
+        checkin_bridge.bridge.consider_sample(
+            participant_id, point['frustration_label'], point['mental_label'], sample_time, features_snapshot,
+        )
+
+    @staticmethod
+    def _build_features_snapshot(point: dict[str, Any], prev: dict[str, Any], minute_index: int) -> dict[str, Any]:
+        """Exact feature shapes train_biomarker_models.py/biomarker_runtime.py
+        use, so a stored check-in answer can later be replayed as a real
+        training row by retrain_from_checkins.py.
+
+        NaN (a missing eda/temp reading, via _safe_float) is normalized to
+        None here -- json.dumps would otherwise emit a literal `NaN` token,
+        which is valid for Python's json module but not valid JSON, and
+        breaks JSON.parse on the dashboard side.
+        """
+        def clean(v):
+            return None if (isinstance(v, float) and math.isnan(v)) else v
+
+        raw = {
+            'eda_t_minus_1': prev['eda'], 'temp_t_minus_1': prev['temp'],
+            'eda_t_0': point['eda'], 'temp_t_0': point['temp'],
+            'eda_delta_t_0': point['eda'] - prev['eda'], 'temp_delta_t_0': point['temp'] - prev['temp'],
+            'eda': point['eda'], 'temp': point['temp'],
+            'minute_index': minute_index,
+        }
+        return {k: clean(v) for k, v in raw.items()}
+
+    def get_live_context(self) -> dict[str, Any] | None:
+        """Snapshot of the most recent known sample, for check-in flows
+        triggered directly by the dashboard (the "How do you feel? Tell
+        CHAP" self-report button) rather than the poll loop. Returns None
+        if no live sample has arrived yet this session."""
+        with self.lock:
+            if not self.raw_history:
+                return None
+            point = self.raw_history[-1]
+            payload = self.latest_sample or {}
+            participant_id = payload.get('participant_id') or 'LIVE'
+            minute_index = int((payload.get('predictions') or {}).get('session_minute_index') or 0)
+            prev = self.raw_history[-2] if len(self.raw_history) >= 2 else point
+            return {
+                'participant_id': participant_id,
+                'stress_label': point['frustration_label'],
+                'mental_label': point['mental_label'],
+                'features_snapshot': self._build_features_snapshot(point, prev, minute_index),
+            }
 
     def _build_record(self, payload: dict[str, Any], point: dict[str, Any], task_type: str) -> dict[str, Any]:
         idx = len(self.session_records[task_type])
