@@ -1,0 +1,464 @@
+{
+  "pathway": "clean -> label(DBR) -> window -> features -> Next_Posture_bad -> train -> LOPO test -> evaluate",
+  "deviation_from_pathway_doc": "Doc specifies 2-second (20-reading) windows; this run used 1-second (10-reading) windows because LOPO evaluation showed the 2s horizon discards most of the forecastable signal -- see posture_ml/windows.py module docstring for the full before/after comparison.",
+  "dataset": {
+    "window_size_readings": 10,
+    "window_size_seconds": 1.0,
+    "n_windows_with_target": 282,
+    "participants": [
+      1,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "positive_rate": 0.2375886524822695
+  },
+  "selected_model": {
+    "name": "pathway__random_forest",
+    "feature_set": "pathway",
+    "model_name": "random_forest",
+    "features": [
+      "mean",
+      "min",
+      "max",
+      "spread",
+      "slope",
+      "movement_speed",
+      "condition_with"
+    ],
+    "lopo_metrics": {
+      "balanced_accuracy": 0.8564734467198889,
+      "f1": 0.7659574468085106,
+      "precision": 0.7297297297297297,
+      "recall": 0.8059701492537313,
+      "accuracy": 0.8829787234042553,
+      "confusion_matrix": [
+        [
+          195,
+          20
+        ],
+        [
+          13,
+          54
+        ]
+      ],
+      "n": 282,
+      "positive_rate": 0.2375886524822695
+    },
+    "lopo_per_participant_balanced_accuracy": {
+      "1": 0.8583333333333334,
+      "3": 0.7990196078431373,
+      "4": 0.7342105263157894,
+      "5": 0.7352941176470589,
+      "6": 0.9029605263157895,
+      "7": 0.8698795180722891
+    },
+    "train_vs_test_generalization_gap": 0.07451893421526612
+  },
+  "all_candidates": [
+    {
+      "name": "baseline_majority_class",
+      "feature_set": "-",
+      "model_name": "majority_class",
+      "lopo_metrics": {
+        "balanced_accuracy": 0.5,
+        "f1": 0.0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "accuracy": 0.7624113475177305,
+        "confusion_matrix": [
+          [
+            215,
+            0
+          ],
+          [
+            67,
+            0
+          ]
+        ],
+        "n": 282,
+        "positive_rate": 0.2375886524822695
+      },
+      "lopo_per_participant_balanced_accuracy": {
+        "1": 0.5,
+        "3": 0.5,
+        "4": 0.5,
+        "5": 0.5,
+        "6": 0.5,
+        "7": 0.5
+      },
+      "train_vs_test_generalization_gap": null
+    },
+    {
+      "name": "baseline_persistence",
+      "feature_set": "-",
+      "model_name": "persistence",
+      "lopo_metrics": {
+        "balanced_accuracy": 0.6914265879902811,
+        "f1": 0.5303030303030303,
+        "precision": 0.5384615384615384,
+        "recall": 0.5223880597014925,
+        "accuracy": 0.7801418439716312,
+        "confusion_matrix": [
+          [
+            185,
+            30
+          ],
+          [
+            32,
+            35
+          ]
+        ],
+        "n": 282,
+        "positive_rate": 0.2375886524822695
+      },
+      "lopo_per_participant_balanced_accuracy": {
+        "1": 0.7333333333333334,
+        "3": 0.6151960784313726,
+        "4": 0.49473684210526314,
+        "5": 0.7352941176470589,
+        "6": 0.7203947368421053,
+        "7": 0.6078313253012048
+      },
+      "train_vs_test_generalization_gap": null
+    },
+    {
+      "name": "pathway__logreg_c1.0",
+      "feature_set": "pathway",
+      "model_name": "logreg_c1.0",
+      "lopo_metrics": {
+        "balanced_accuracy": 0.8373828531759806,
+        "f1": 0.7310344827586207,
+        "precision": 0.6794871794871795,
+        "recall": 0.7910447761194029,
+        "accuracy": 0.8617021276595744,
+        "confusion_matrix": [
+          [
+            190,
+            25
+          ],
+          [
+            14,
+            53
+          ]
+        ],
+        "n": 282,
+        "positive_rate": 0.2375886524822695
+      },
+      "lopo_per_participant_balanced_accuracy": {
+        "1": 0.8583333333333334,
+        "3": 0.7696078431372549,
+        "4": 0.7473684210526316,
+        "5": 0.7205882352941176,
+        "6": 0.9161184210526316,
+        "7": 0.8337349397590361
+      },
+      "train_vs_test_generalization_gap": 0.04495000662778659
+    },
+    {
+      "name": "pathway__logreg_c0.3",
+      "feature_set": "pathway",
+      "model_name": "logreg_c0.3",
+      "lopo_metrics": {
+        "balanced_accuracy": 0.8420340159666782,
+        "f1": 0.7412587412587412,
+        "precision": 0.6973684210526315,
+        "recall": 0.7910447761194029,
+        "accuracy": 0.8687943262411347,
+        "confusion_matrix": [
+          [
+            192,
+            23
+          ],
+          [
+            14,
+            53
+          ]
+        ],
+        "n": 282,
+        "positive_rate": 0.2375886524822695
+      },
+      "lopo_per_participant_balanced_accuracy": {
+        "1": 0.8583333333333334,
+        "3": 0.7696078431372549,
+        "4": 0.7473684210526316,
+        "5": 0.7205882352941176,
+        "6": 0.9161184210526316,
+        "7": 0.8457831325301205
+      },
+      "train_vs_test_generalization_gap": 0.04324364295821448
+    },
+    {
+      "name": "pathway__random_forest",
+      "feature_set": "pathway",
+      "model_name": "random_forest",
+      "lopo_metrics": {
+        "balanced_accuracy": 0.8564734467198889,
+        "f1": 0.7659574468085106,
+        "precision": 0.7297297297297297,
+        "recall": 0.8059701492537313,
+        "accuracy": 0.8829787234042553,
+        "confusion_matrix": [
+          [
+            195,
+            20
+          ],
+          [
+            13,
+            54
+          ]
+        ],
+        "n": 282,
+        "positive_rate": 0.2375886524822695
+      },
+      "lopo_per_participant_balanced_accuracy": {
+        "1": 0.8583333333333334,
+        "3": 0.7990196078431373,
+        "4": 0.7342105263157894,
+        "5": 0.7352941176470589,
+        "6": 0.9029605263157895,
+        "7": 0.8698795180722891
+      },
+      "train_vs_test_generalization_gap": 0.07451893421526612
+    },
+    {
+      "name": "pathway__gradient_boosting",
+      "feature_set": "pathway",
+      "model_name": "gradient_boosting",
+      "lopo_metrics": {
+        "balanced_accuracy": 0.7785491148906629,
+        "f1": 0.6774193548387096,
+        "precision": 0.7368421052631579,
+        "recall": 0.6268656716417911,
+        "accuracy": 0.8581560283687943,
+        "confusion_matrix": [
+          [
+            200,
+            15
+          ],
+          [
+            25,
+            42
+          ]
+        ],
+        "n": 282,
+        "positive_rate": 0.2375886524822695
+      },
+      "lopo_per_participant_balanced_accuracy": {
+        "1": 0.6083333333333334,
+        "3": 0.7107843137254902,
+        "4": 0.7736842105263158,
+        "5": 0.7352941176470589,
+        "6": 0.924342105263158,
+        "7": 0.7578313253012048
+      },
+      "train_vs_test_generalization_gap": 0.14649949928130324
+    },
+    {
+      "name": "pathway__svm_rbf",
+      "feature_set": "pathway",
+      "model_name": "svm_rbf",
+      "lopo_metrics": {
+        "balanced_accuracy": 0.809371745921555,
+        "f1": 0.7058823529411765,
+        "precision": 0.6956521739130435,
+        "recall": 0.7164179104477612,
+        "accuracy": 0.8581560283687943,
+        "confusion_matrix": [
+          [
+            194,
+            21
+          ],
+          [
+            19,
+            48
+          ]
+        ],
+        "n": 282,
+        "positive_rate": 0.2375886524822695
+      },
+      "lopo_per_participant_balanced_accuracy": {
+        "1": 0.8083333333333333,
+        "3": 0.7401960784313726,
+        "4": 0.7473684210526316,
+        "5": 0.7205882352941176,
+        "6": 0.8223684210526316,
+        "7": 0.813855421686747
+      },
+      "train_vs_test_generalization_gap": 0.08986843002558376
+    },
+    {
+      "name": "extended__logreg_c1.0",
+      "feature_set": "extended",
+      "model_name": "logreg_c1.0",
+      "lopo_metrics": {
+        "balanced_accuracy": 0.8229434224227699,
+        "f1": 0.7074829931972789,
+        "precision": 0.65,
+        "recall": 0.7761194029850746,
+        "accuracy": 0.8475177304964538,
+        "confusion_matrix": [
+          [
+            187,
+            28
+          ],
+          [
+            15,
+            52
+          ]
+        ],
+        "n": 282,
+        "positive_rate": 0.2375886524822695
+      },
+      "lopo_per_participant_balanced_accuracy": {
+        "1": 0.8583333333333334,
+        "3": 0.7279411764705883,
+        "4": 0.7078947368421052,
+        "5": 0.7205882352941176,
+        "6": 0.8980263157894737,
+        "7": 0.8337349397590361
+      },
+      "train_vs_test_generalization_gap": 0.06199159954471234
+    },
+    {
+      "name": "extended__logreg_c0.3",
+      "feature_set": "extended",
+      "model_name": "logreg_c0.3",
+      "lopo_metrics": {
+        "balanced_accuracy": 0.8425199583477959,
+        "f1": 0.7346938775510204,
+        "precision": 0.675,
+        "recall": 0.8059701492537313,
+        "accuracy": 0.8617021276595744,
+        "confusion_matrix": [
+          [
+            189,
+            26
+          ],
+          [
+            13,
+            54
+          ]
+        ],
+        "n": 282,
+        "positive_rate": 0.2375886524822695
+      },
+      "lopo_per_participant_balanced_accuracy": {
+        "1": 0.8583333333333334,
+        "3": 0.7573529411764706,
+        "4": 0.7078947368421052,
+        "5": 0.7205882352941176,
+        "6": 0.9292763157894737,
+        "7": 0.8457831325301205
+      },
+      "train_vs_test_generalization_gap": 0.04785845844381864
+    },
+    {
+      "name": "extended__random_forest",
+      "feature_set": "extended",
+      "model_name": "random_forest",
+      "lopo_metrics": {
+        "balanced_accuracy": 0.8271086428323499,
+        "f1": 0.723404255319149,
+        "precision": 0.6891891891891891,
+        "recall": 0.7611940298507462,
+        "accuracy": 0.8617021276595744,
+        "confusion_matrix": [
+          [
+            192,
+            23
+          ],
+          [
+            16,
+            51
+          ]
+        ],
+        "n": 282,
+        "positive_rate": 0.2375886524822695
+      },
+      "lopo_per_participant_balanced_accuracy": {
+        "1": 0.8166666666666667,
+        "3": 0.7156862745098038,
+        "4": 0.6210526315789473,
+        "5": 0.7205882352941176,
+        "6": 0.9161184210526316,
+        "7": 0.8698795180722891
+      },
+      "train_vs_test_generalization_gap": 0.12397901220413465
+    },
+    {
+      "name": "extended__gradient_boosting",
+      "feature_set": "extended",
+      "model_name": "gradient_boosting",
+      "lopo_metrics": {
+        "balanced_accuracy": 0.7934744880249913,
+        "f1": 0.6984126984126984,
+        "precision": 0.7457627118644068,
+        "recall": 0.6567164179104478,
+        "accuracy": 0.8652482269503546,
+        "confusion_matrix": [
+          [
+            200,
+            15
+          ],
+          [
+            23,
+            44
+          ]
+        ],
+        "n": 282,
+        "positive_rate": 0.2375886524822695
+      },
+      "lopo_per_participant_balanced_accuracy": {
+        "1": 0.6916666666666667,
+        "3": 0.7107843137254902,
+        "4": 0.7736842105263158,
+        "5": 0.7352941176470589,
+        "6": 0.893092105263158,
+        "7": 0.8078313253012048
+      },
+      "train_vs_test_generalization_gap": 0.1308930695418944
+    },
+    {
+      "name": "extended__svm_rbf",
+      "feature_set": "extended",
+      "model_name": "svm_rbf",
+      "lopo_metrics": {
+        "balanced_accuracy": 0.8229434224227699,
+        "f1": 0.7074829931972789,
+        "precision": 0.65,
+        "recall": 0.7761194029850746,
+        "accuracy": 0.8475177304964538,
+        "confusion_matrix": [
+          [
+            187,
+            28
+          ],
+          [
+            15,
+            52
+          ]
+        ],
+        "n": 282,
+        "positive_rate": 0.2375886524822695
+      },
+      "lopo_per_participant_balanced_accuracy": {
+        "1": 0.8083333333333333,
+        "3": 0.7401960784313726,
+        "4": 0.7210526315789474,
+        "5": 0.7205882352941176,
+        "6": 0.8898026315789473,
+        "7": 0.8457831325301205
+      },
+      "train_vs_test_generalization_gap": 0.07568083191419239
+    }
+  ],
+  "notes": [
+    "Next_Posture_bad forecasts the NEXT 1-second window from the CURRENT window's features; the last window of every (participant, condition, segment) recording has no next window and is dropped.",
+    "Evaluation is Leave-One-Participant-Out: every reported metric is on a participant the model never trained on.",
+    "At 2s windows, participant 5 has zero positive Next_Posture_bad windows, making recall/F1 degenerate by construction for that held-out fold; at the default 1s granularity this is no longer the case.",
+    "With only 282 windows across 6 participants, treat all metrics as directional, not production-grade precision; re-evaluate as more participants are collected."
+  ]
+}

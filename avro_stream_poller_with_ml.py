@@ -1,5 +1,6 @@
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone, timedelta
 
 import boto3
@@ -7,22 +8,41 @@ import pandas as pd
 from flask import Flask, jsonify
 
 from biomarker_runtime import LiveBiomarkerPredictor
+from risk_score import RollingRiskScorer, band_for
+from system_message_api import register_system_message_routes
 
-AWS_ACCESS_KEY_ID = ""
-AWS_SECRET_ACCESS_KEY = ""
-AWS_REGION = "us-east-1"
+try:
+    from dotenv import load_dotenv
 
-S3_BUCKET = "empatica-us-east-1-prod-data"
-S3_BASE_PREFIX = "v2/597/1/1/participant_data/"
-POLL_SECONDS = 30
+    load_dotenv()
+except ImportError:
+    pass
+
+AWS_ACCESS_KEY_ID = os.environ["AWS_ACCESS_KEY_ID"]
+AWS_SECRET_ACCESS_KEY = os.environ["AWS_SECRET_ACCESS_KEY"]
+AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
+
+S3_BUCKET = os.environ.get("S3_BUCKET", "empatica-us-east-1-prod-data")
+S3_BASE_PREFIX = os.environ.get("S3_BASE_PREFIX", "v2/1324/1/1/participant_data/")
+
+# S3 list calls are cheap; the real latency floor is how often Empatica's
+# Care App itself uploads new objects to S3, not this interval. There is no
+# push/webhook option available against a bucket we don't own, so tight
+# polling is the closest thing to "real time" achievable from our side.
+POLL_SECONDS = int(os.environ.get("POLL_SECONDS", "5"))
+
+# How long after UTC midnight to keep checking yesterday's prefix too, in
+# case in-flight uploads still land under the previous day's date folder.
+MIDNIGHT_GRACE_MINUTES = int(os.environ.get("MIDNIGHT_GRACE_MINUTES", "15"))
 
 FORCE_DOWNLOAD_EVERY_POLL = False
 
-LOCAL_BIOMARKER_DIR = r""
+LOCAL_BIOMARKER_DIR = r"bio"
 os.makedirs(LOCAL_BIOMARKER_DIR, exist_ok=True)
 
 MODEL_DIR = os.path.join(os.path.dirname(__file__), "models")
 predictor = LiveBiomarkerPredictor(MODEL_DIR)
+risk_scorer = RollingRiskScorer()
 
 app = Flask(__name__)
 latest_sample = {
@@ -35,6 +55,7 @@ latest_sample = {
     "participant_id": None,
     "source_prefix": None,
     "updated_at": None,
+    "observed_latency_seconds": None,
     "note": "waiting for first sample",
     "predictions": None,
 }
@@ -43,6 +64,9 @@ latest_sample = {
 @app.route("/latest", methods=["GET"])
 def latest():
     return jsonify(latest_sample)
+
+
+register_system_message_routes(app, latest_sample)
 
 
 def make_s3_client():
@@ -159,16 +183,24 @@ def read_last_value(csv_path, kind):
     return None, None
 
 
-def utc_dates_to_check(days_back=1):
-    now_utc = datetime.now(timezone.utc)
-    return [(now_utc - timedelta(days=d)).strftime("%Y-%m-%d") for d in range(0, days_back + 1)]
+def active_date_strings(now_utc):
+    """Only look back at yesterday during a short grace window after
+    midnight UTC, instead of scanning two full days on every single poll."""
+    today = now_utc.strftime("%Y-%m-%d")
+    minutes_since_midnight = now_utc.hour * 60 + now_utc.minute
+    if minutes_since_midnight <= MIDNIGHT_GRACE_MINUTES:
+        yesterday = (now_utc - timedelta(days=1)).strftime("%Y-%m-%d")
+        return [today, yesterday]
+    return [today]
 
 
 def pick_most_recent_participant_and_keys(s3, date_prefixes, date_strings):
     candidates = []
 
-    for prefix, day in zip(date_prefixes, date_strings):
-        objs = list_objects_all(s3, prefix)
+    with ThreadPoolExecutor(max_workers=max(1, len(date_prefixes))) as pool:
+        listings = pool.map(lambda p: list_objects_all(s3, p), date_prefixes)
+
+    for day, objs in zip(date_strings, listings):
         for o in objs:
             k = o["Key"]
             if "/digital_biomarkers/aggregated_per_minute/" not in k:
@@ -242,11 +274,12 @@ def poll_loop():
     last_sig = None
     last_mods = {}
 
-    print("Polling biomarker CSV updates...")
+    print(f"Polling biomarker CSV updates every {POLL_SECONDS}s...")
 
     while True:
         try:
-            days = utc_dates_to_check(days_back=1)
+            now_utc = datetime.now(timezone.utc)
+            days = active_date_strings(now_utc)
             prefixes = [f"{S3_BASE_PREFIX}{d}/" for d in days]
             pid, keys, mods, used_prefix = pick_most_recent_participant_and_keys(s3, prefixes, days)
 
@@ -273,8 +306,9 @@ def poll_loop():
                 "pulse": os.path.join(local_dir, "pulse-rate.csv"),
             }
 
+            with ThreadPoolExecutor(max_workers=len(paths)) as pool:
+                list(pool.map(lambda k: download_key(s3, keys[k], paths[k]), paths))
             for k in paths:
-                download_key(s3, keys[k], paths[k])
                 last_mods[k] = mods[k]
 
             eda_ts, eda_val = read_last_value(paths["eda"], "eda")
@@ -287,6 +321,9 @@ def poll_loop():
                 latest_sample["note"] = "S3 updated but last valid value unchanged (no new minute row yet)"
                 print("[DEBUG] last valid value unchanged:", sig)
             else:
+                newest_upload = max(mods.values())
+                observed_latency = (datetime.now(timezone.utc) - newest_upload).total_seconds()
+
                 latest_sample.update(
                     {
                         "eda": eda_val,
@@ -298,12 +335,32 @@ def poll_loop():
                         "participant_id": pid,
                         "source_prefix": used_prefix if used_prefix else prefixes[0],
                         "updated_at": datetime.now().isoformat(timespec="seconds"),
+                        "observed_latency_seconds": round(observed_latency, 1),
                         "note": "new minute detected",
                     }
                 )
                 latest_sample["predictions"] = predictor.update(latest_sample)
+                predictions = latest_sample["predictions"]
+                frustration_info = predictions.get("frustration") or {}
+                mental_info = predictions.get("mental_demand") or {}
+                predictions["risk"] = risk_scorer.score(
+                    frustration_label=frustration_info.get("label"),
+                    mental_label=mental_info.get("label"),
+                    frustration_confidence=frustration_info.get("confidence"),
+                    mental_confidence=mental_info.get("confidence"),
+                )
                 last_sig = sig
-                print("Updated /latest:", latest_sample)
+                print(f"Updated /latest (observed S3 latency: {observed_latency:.1f}s):", latest_sample)
+
+                overall = predictions["risk"]["overall"]
+                print(
+                    f"[ML] {latest_sample['updated_at']} participant={pid} "
+                    f"eda={eda_val} temp={temp_val} pulse={pulse_val} "
+                    f"-> prediction: {band_for(overall).upper()} "
+                    f"(frustration={frustration_info.get('label')} {frustration_info.get('confidence')}, "
+                    f"mental_demand={mental_info.get('label')} {mental_info.get('confidence')}, "
+                    f"risk={overall})"
+                )
 
         except Exception as e:
             print("Poll error:", e)
@@ -315,4 +372,4 @@ if __name__ == "__main__":
     import threading
 
     threading.Thread(target=poll_loop, daemon=True).start()
-    app.run(host="0.0.0.0", port=7000)
+    app.run(host="0.0.0.0", port=7001)

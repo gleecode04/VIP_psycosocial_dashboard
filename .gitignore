@@ -1,0 +1,17 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+bio/
+
+# Raw IMU research data: contains participant PII (names, emails, height/
+# weight, injury history in Demographics.csv). Only a de-identified derived
+# CSV produced by posture_ml/ingest_imu_raw.py should ever be committed.
+IMU Data/
+*/Demographics.csv
+posture_ml/participant_id_map.json
+
+# JS build tooling / generated runtime artifacts -- not source
+node_modules/
+live_output/
+posture_connection_debug.log
